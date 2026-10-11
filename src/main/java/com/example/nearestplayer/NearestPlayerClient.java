@@ -74,9 +74,10 @@ public class NearestPlayerClient implements ClientModInitializer {
                 nearest.getGameProfile().name(),
                 distance,
                 Mth.floor(target.x), Mth.floor(target.y), Mth.floor(target.z)));
-
-        mc.gui.setOverlayMessage(text, false);
+          
+                mc.player.displayClientMessage(text, true);
     }
+
 
     private void clearGlow() {
         AbstractClientPlayer previous = glowing.get();
