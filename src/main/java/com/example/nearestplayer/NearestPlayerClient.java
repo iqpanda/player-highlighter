@@ -9,17 +9,12 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 
 import java.lang.ref.WeakReference;
+import java.lang.reflect.Method;
 
-/**
- * Client-side only. Every tick:
- *  - finds the nearest other player the client currently knows about
- *  - makes them glow (client-side only, nobody else sees it)
- *  - pins a waypoint on their position and shows name, coordinates,
- *    direction arrow and distance above the hotbar
- */
 public class NearestPlayerClient implements ClientModInitializer {
 
     private WeakReference<AbstractClientPlayer> glowing = new WeakReference<>(null);
+    private int ticks = 0;
 
     @Override
     public void onInitializeClient() {
@@ -31,6 +26,7 @@ public class NearestPlayerClient implements ClientModInitializer {
             clearGlow();
             return;
         }
+        ticks++;
 
         AbstractClientPlayer nearest = null;
         double best = Double.MAX_VALUE;
@@ -56,14 +52,12 @@ public class NearestPlayerClient implements ClientModInitializer {
         nearest.setGlowingTag(true);
         glowing = new WeakReference<>(nearest);
 
-        // Waypoint = the target's current position
         Vec3 target = nearest.position();
         Vec3 me = mc.player.position();
         double dx = target.x - me.x;
         double dz = target.z - me.z;
         double distance = Math.sqrt(best);
 
-        // Direction relative to where the player is looking
         float angleToTarget = (float) (Mth.atan2(dz, dx) * (180.0 / Math.PI)) - 90.0F;
         float relative = Mth.wrapDegrees(angleToTarget - mc.player.getYRot());
         String arrow = arrowFor(relative);
@@ -74,10 +68,49 @@ public class NearestPlayerClient implements ClientModInitializer {
                 nearest.getGameProfile().name(),
                 distance,
                 Mth.floor(target.x), Mth.floor(target.y), Mth.floor(target.z)));
-          
-                mc.player.displayClientMessage(text, true);
+
+        showMessage(mc, text);
     }
 
+    /** Tries the different names this method has had; uses whichever exists. */
+    private void showMessage(Minecraft mc, Component text) {
+        if (invoke(mc.gui, "setOverlayMessage", text, Boolean.FALSE)) return;
+        if (invoke(mc.gui, "setOverlayMessage", text)) return;
+        if (invoke(mc.player, "sendOverlayMessage", text)) return;
+        if (invoke(mc.player, "displayClientMessage", text, Boolean.TRUE)) return;
+        // Last resort: a chat message every 2 seconds
+        if (ticks % 40 == 0) {
+            invoke(mc.player, "sendSystemMessage", text);
+        }
+    }
+
+    private static boolean invoke(Object target, String name, Object... args) {
+        for (Method m : target.getClass().getMethods()) {
+            if (!m.getName().equals(name) || m.getParameterCount() != args.length) continue;
+            Class<?>[] types = m.getParameterTypes();
+            boolean matches = true;
+            for (int i = 0; i < args.length; i++) {
+                if (!wrap(types[i]).isInstance(args[i])) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (!matches) continue;
+            try {
+                m.invoke(target, args);
+                return true;
+            } catch (Throwable ignored) {
+            }
+        }
+        return false;
+    }
+
+    private static Class<?> wrap(Class<?> c) {
+        if (c == boolean.class) return Boolean.class;
+        if (c == int.class) return Integer.class;
+        if (c == float.class) return Float.class;
+        return c;
+    }
 
     private void clearGlow() {
         AbstractClientPlayer previous = glowing.get();
@@ -87,7 +120,6 @@ public class NearestPlayerClient implements ClientModInitializer {
         glowing = new WeakReference<>(null);
     }
 
-    /** 8-way arrow: 0 degrees = straight ahead, positive = to the right. */
     private static String arrowFor(float relativeDegrees) {
         String[] arrows = {"↑", "↗", "→", "↘", "↓", "↙", "←", "↖"};
         int index = Math.floorMod(Math.round(relativeDegrees / 45.0F), 8);
