@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "nearestplayer",
+  "version": "${version}",
+  "name": "Nearest Player Tracker",
+  "description": "Highlights the nearest player, marks them with a waypoint and shows the distance.",
+  "authors": ["You"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.example.nearestplayer.NearestPlayerClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.1",
+    "minecraft": ">=26.2-",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
+}
